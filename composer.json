@@ -1,0 +1,34 @@
+{
+    "name": "ipfs/php-stream-wrapper",
+    "description": "PHP Stream Wrapper for IPFS.",
+    "keywords": [
+        "ipfs",
+        "stream wrapper"
+    ],
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Andrei Mateescu",
+            "homepage": "https://treehouse.online"
+        }
+    ],
+    "require": {
+        "ext-sodium": "*",
+        "php": "^7.0",
+        "guzzlehttp/guzzle": "^6.2.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^6.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "IPFS\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "IPFS\\Tests\\": "tests/"
+        }
+    }
+}
