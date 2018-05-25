@@ -1,0 +1,29 @@
+language: php
+
+sudo: false
+
+php:
+  - 7.0
+  - 7.1
+  - 7.2
+  - master
+
+install:
+    - travis_retry composer install --no-interaction --prefer-source
+
+before_script:
+  - wget https://dist.ipfs.io/go-ipfs/v0.4.15/go-ipfs_v0.4.15_linux-amd64.tar.gz -O /tmp/go-ipfs_linux-amd64.tar.gz
+  - tar -xvf /tmp/go-ipfs_linux-amd64.tar.gz
+  - export PATH=$PATH:$PWD/go-ipfs/
+  - ipfs init
+  - ipfs daemon &
+
+script:
+  - ./vendor/bin/phpunit -c ./phpunit.xml --coverage-text --report-useless-tests
+  - ./vendor/bin/phpcs --standard=phpcs.xml src -s
+  - ./vendor/bin/phpcs --standard=phpcs.xml tests -s
+
+matrix:
+  allow_failures:
+    - php: master
+  fast_finish: true
