@@ -4,4 +4,4 @@
 
 The IPFS stream wrapper enables you to store and retrieve data from [IPFS](https://ipfs.io/) using built-in PHP functions, such as file_get_contents(), fopen() and file_put_contents().
 
-[![Build Status](https://travis-ci.org/treehouse-roots/php-ipfs-stream-wrapper.svg?branch=master)](https://travis-ci.org/treehouse-roots/php-ipfs-stream-wrapper)
+[![Build Status](https://api.travis-ci.com/treehouse-roots/php-ipfs-stream-wrapper.svg?branch=master)](https://travis-ci.com/treehouse-roots/php-ipfs-stream-wrapper)

@@ -8,8 +8,14 @@ php:
   - 7.2
   - master
 
+before_install:
+  - sudo add-apt-repository ppa:ondrej/php -y
+  - sudo apt-get -qq update
+  - sudo apt-get install -y libsodium-dev
+
 install:
-    - travis_retry composer install --no-interaction --prefer-source
+  - printf "\n" | pecl install libsodium
+  - travis_retry composer install --no-interaction --prefer-source
 
 before_script:
   - wget https://dist.ipfs.io/go-ipfs/v0.4.15/go-ipfs_v0.4.15_linux-amd64.tar.gz -O /tmp/go-ipfs_linux-amd64.tar.gz
