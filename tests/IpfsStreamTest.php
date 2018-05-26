@@ -16,10 +16,10 @@ class IpfsStreamTest extends TestCase
     /**
      * @covers ::register
      */
-    public function testRegister() {
+    public function testRegister()
+    {
         IpfsStreamWrapper::register();
 
         $this->assertContains('ipfs', \stream_get_wrappers());
     }
-
 }

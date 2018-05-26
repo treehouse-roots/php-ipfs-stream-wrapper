@@ -71,5 +71,4 @@ trait StreamContextOptionsTrait
         $default[$this->protocol][$name] = $value;
         stream_context_set_default($default);
     }
-
 }

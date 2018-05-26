@@ -1,12 +1,18 @@
 <?xml version="1.0"?>
-<ruleset name="Modfied PSR2">
+<ruleset name="Modfied PSR1 and PSR2">
 
- <description>PSR2 excluding line length</description>
+    <description>PSR1 excluding camel caps method name and PSR2 excluding line length</description>
 
- <rule ref="PSR2"/>
+    <rule ref="PSR2"/>
 
- <!-- The following rules should be kept excluded -->
-  <rule ref="Generic.Files.LineLength.TooLong">
-  <severity>0</severity>
- </rule>
+    <!-- The following rules should be kept excluded -->
+    <rule ref="Generic.Files.LineLength.TooLong">
+        <severity>0</severity>
+    </rule>
+    <rule ref="PSR1"/>
+
+    <!-- The following rules should be kept excluded -->
+    <rule ref="PSR1.Methods.CamelCapsMethodName.NotCamelCaps">
+        <severity>0</severity>
+    </rule>
 </ruleset>

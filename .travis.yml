@@ -25,7 +25,7 @@ before_script:
   - ipfs daemon &
 
 script:
-  - ./vendor/bin/phpunit -c ./phpunit.xml --coverage-text --report-useless-tests
+  - ./vendor/bin/phpunit -c ./phpunit.xml --coverage-text --dont-report-useless-tests
   - ./vendor/bin/phpcs --standard=phpcs.xml src -s
   - ./vendor/bin/phpcs --standard=phpcs.xml tests -s
 

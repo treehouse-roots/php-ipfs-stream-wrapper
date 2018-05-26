@@ -753,5 +753,4 @@ class IpfsStreamWrapper
         $this->stream = new Stream(fopen('php://temp', 'r+'));
         return true;
     }
-
 }
