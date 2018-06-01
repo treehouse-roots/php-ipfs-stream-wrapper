@@ -13,13 +13,6 @@ trait StreamContextOptionsTrait
     public $context;
 
     /**
-     * The opened protocol.
-     *
-     * @var string
-     */
-    private $protocol = 'ipfs';
-
-    /**
      * Gets the stream context options available to the current stream.
      *
      * @return array
@@ -27,16 +20,16 @@ trait StreamContextOptionsTrait
      */
     private function getOptions()
     {
-        // Context is not set when doing things like stat
+        // Context is not set when doing things like stat().
         if ($this->context === null) {
             $options = [];
         } else {
             $options = stream_context_get_options($this->context);
-            $options = isset($options[$this->protocol]) ? $options[$this->protocol] : [];
+            $options = isset($options[static::PROTOCOL]) ? $options[static::PROTOCOL] : [];
         }
 
         $default = stream_context_get_options(stream_context_get_default());
-        $default = isset($default[$this->protocol]) ? $default[$this->protocol] : [];
+        $default = isset($default[static::PROTOCOL]) ? $default[static::PROTOCOL] : [];
         $result = $options + $default;
 
         return $result;
@@ -65,10 +58,10 @@ trait StreamContextOptionsTrait
      * @param mixed $value
      *   The value of the option to set.
      */
-    private function setOption($name, $value)
+    public static function setOption($name, $value)
     {
         $default = stream_context_get_options(stream_context_get_default());
-        $default[$this->protocol][$name] = $value;
+        $default[static::PROTOCOL][$name] = $value;
         stream_context_set_default($default);
     }
 }

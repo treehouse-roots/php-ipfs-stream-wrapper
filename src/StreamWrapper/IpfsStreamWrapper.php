@@ -20,13 +20,9 @@ class IpfsStreamWrapper
     use StreamContextOptionsTrait;
 
     /**
-     * The URI of the IPFS host.
-     *
-     * @var string
-     *
-     * @todo Make this configurable.
+     * The protocol registered by this stream wrapper.
      */
-    protected $ipfsHost = 'http://127.0.0.1:5001';
+    const PROTOCOL = 'ipfs';
 
     /**
      * The URI of the resource.
@@ -78,16 +74,26 @@ class IpfsStreamWrapper
     protected $config = [];
 
     /**
-     * Registers the 'ipfs://' stream wrapper
+     * Registers the 'ipfs://' stream wrapper.
+     *
+     * @param string $ipfs_host
+     *   (optional) The URL of the IPFS API server. Defaults to the standard
+     *   localhost endpoint: 'http://127.0.0.1:5001'.
+     * @param array $http_client_config
+     *   (optional) Configuration options for the HTTP client. See
+     *   http://docs.guzzlephp.org/en/stable/request-options.html for a list of
+     *   possible values.
      */
-    public static function register()
+    public static function register($ipfs_host = 'http://127.0.0.1:5001', array $http_client_config = [])
     {
-        $protocol = 'ipfs';
-        if (in_array($protocol, stream_get_wrappers())) {
-            stream_wrapper_unregister($protocol);
+        if (in_array(static::PROTOCOL, stream_get_wrappers())) {
+            stream_wrapper_unregister(static::PROTOCOL);
         }
 
-        stream_wrapper_register($protocol, static::class, STREAM_IS_URL);
+        stream_wrapper_register(static::PROTOCOL, static::class, STREAM_IS_URL);
+
+        self::setOption('ipfs_host', $ipfs_host);
+        self::setOption('http_client_config', $http_client_config);
     }
 
     /**
@@ -139,7 +145,7 @@ class IpfsStreamWrapper
     {
         $this->openedPath = $path;
         $path = $this->getTarget($path);
-        $this->setUri($this->ipfsHost . '/api/v0/ls?arg=' . $path);
+        $this->setUri($this->getOption('ipfs_host') . '/api/v0/ls?arg=' . $path);
         try {
             $response = $this->request();
             $data = $this->decodeResponse($response);
@@ -252,13 +258,13 @@ class IpfsStreamWrapper
             $this->stream->seek(0);
         }
 
-        $this->setUri($this->ipfsHost . '/api/v0/add');
-        $this->config['multipart'] = [
-          [
-            'name' => 'file',
-            'contents' => $this->stream,
-          ],
-        ];
+        $this->setUri($this->getOption('ipfs_host') . '/api/v0/add');
+        $this->setHttpClientConfigOption('multipart', [
+            [
+                'name' => 'file',
+                'contents' => $this->stream,
+            ],
+        ]);
         $response = $this->request('POST');
 
         return $response->getStatusCode() == 200 ? true : false;
@@ -400,7 +406,7 @@ class IpfsStreamWrapper
             return false;
         }
 
-        $this->config['timeout'] = $arg1 + ($arg2 / 1000000);
+        $this->setHttpClientConfigOption('timeout', $arg1 + ($arg2 / 1000000));
         return true;
     }
 
@@ -489,7 +495,7 @@ class IpfsStreamWrapper
         $size = $type = null;
         try {
             $path = $this->getTarget($path);
-            $this->setUri($this->ipfsHost . '/api/v0/cat?arg=' . $path);
+            $this->setUri($this->getOption('ipfs_host') . '/api/v0/cat?arg=' . $path);
             $response = $this->requestTryHeadLookingForHeader($this->uri, 'X-Content-Length');
 
             if ($response->hasHeader('X-Content-Length')) {
@@ -528,23 +534,13 @@ class IpfsStreamWrapper
      *
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
-    public function request($method = 'GET')
+    private function request($method = 'GET')
     {
-        $response = $this->getHttpClient()->request($method, $this->uri, $this->config);
+        $response = $this->getHttpClient()->request($method, $this->uri, $this->httpClientConfig);
         if ($method !== 'HEAD') {
             $this->stream = $response->getBody();
         }
         return $response;
-    }
-
-    /**
-     * Returns the current HTTP client configuration.
-     *
-     * @return array
-     */
-    public function getHttpConfig()
-    {
-        return $this->config;
     }
 
     /**
@@ -727,7 +723,7 @@ class IpfsStreamWrapper
     private function openReadStream($uri)
     {
         $path = $this->getTarget($uri);
-        $this->setUri($this->ipfsHost . '/api/v0/cat?arg=' . $path);
+        $this->setUri($this->getOption('ipfs_host') . '/api/v0/cat?arg=' . $path);
         $this->request();
 
         $this->size = $this->stream->getSize();
