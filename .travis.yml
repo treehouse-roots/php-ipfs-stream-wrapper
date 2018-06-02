@@ -23,6 +23,7 @@ before_script:
   - export PATH=$PATH:$PWD/go-ipfs/
   - ipfs init
   - ipfs daemon &
+  - sleep 3
 
 script:
   - ./vendor/bin/phpunit -c ./phpunit.xml --coverage-text --dont-report-useless-tests

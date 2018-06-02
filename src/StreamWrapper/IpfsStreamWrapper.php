@@ -221,14 +221,13 @@ class IpfsStreamWrapper
         $ipfs_target = $this->getIpfsTarget($path);
         $this->setUri($this->getOption('ipfs_host') . '/api/v0/files/mkdir?arg=/' . $ipfs_target . '&parents=' . $parents);
 
-      try {
-        $this->request();
-      }
-      catch (\Exception $e) {
-        return $this->triggerError($e->getMessage(), $options);
-      }
+        try {
+            $this->request();
+        } catch (\Exception $e) {
+            return $this->triggerError($e->getMessage(), $options);
+        }
 
-      return true;
+        return true;
     }
 
     /**
@@ -303,16 +302,16 @@ class IpfsStreamWrapper
 
         // If the upload was successful, move the file to our local opened path.
         if ($response->getStatusCode() == 200) {
-          $body = $this->decodeResponse($response);
+            $body = $this->decodeResponse($response);
 
-          $source = '/ipfs/' . $body['Hash'];
-          $destination = '/' . $this->getIpfsTarget($this->openedPath);
+            $source = '/ipfs/' . $body['Hash'];
+            $destination = '/' . $this->getIpfsTarget($this->openedPath);
 
-          $this->setUri($this->getOption('ipfs_host') . '/api/v0/files/cp?arg=' . $source . '&arg=' . $destination);
-          $this->setHttpClientConfigOption('multipart', NULL);
-          $this->request();
+            $this->setUri($this->getOption('ipfs_host') . '/api/v0/files/cp?arg=' . $source . '&arg=' . $destination);
+            $this->setHttpClientConfigOption('multipart', null);
+            $this->request();
 
-          return true;
+            return true;
         }
 
         return false;
@@ -621,8 +620,8 @@ class IpfsStreamWrapper
         $target = '/' . trim(preg_replace('/^[\w\-]+:\/\/|^data:/', '', $uri), '\/');
 
         // The target contains a hash, so it is not a local IPFS path.
-        if (substr($target,0,2) === 'Qm') {
-          $target = '/ipfs' . $target;
+        if (substr($target, 0, 3) === '/Qm') {
+            $target = '/ipfs' . $target;
         }
 
         return $target;
@@ -698,7 +697,7 @@ class IpfsStreamWrapper
 
         // This is triggered when doing things like lstat() or stat().
         if ($flags & STREAM_REPORT_ERRORS) {
-          trigger_error(implode("\n", (array)$errors), E_USER_WARNING);
+            trigger_error(implode("\n", (array)$errors), E_USER_WARNING);
         }
 
         return false;

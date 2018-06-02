@@ -14,12 +14,18 @@ class IpfsStreamTest extends TestCase
 {
 
     /**
+     * {@inheritdoc}
+     */
+    protected function setUp()
+    {
+        IpfsStreamWrapper::register();
+    }
+
+    /**
      * @covers ::register
      */
     public function testRegister()
     {
-        IpfsStreamWrapper::register();
-
         $this->assertContains('ipfs', \stream_get_wrappers());
     }
 
