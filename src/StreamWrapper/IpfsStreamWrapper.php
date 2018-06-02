@@ -144,8 +144,8 @@ class IpfsStreamWrapper
     public function dir_opendir($path, $options)
     {
         $this->openedPath = $path;
-        $path = $this->getTarget($path);
-        $this->setUri($this->getOption('ipfs_host') . '/api/v0/ls?arg=' . $path);
+        $ipfs_target = $this->getIpfsTarget($path);
+        $this->setUri($this->getOption('ipfs_host') . '/api/v0/ls?arg=' . $ipfs_target);
         try {
             $response = $this->request();
             $data = $this->decodeResponse($response);
@@ -362,11 +362,11 @@ class IpfsStreamWrapper
     public function stream_seek($offset, $whence = SEEK_SET)
     {
         return !$this->stream->isSeekable()
-          ? false
-          : $this->handleBooleanCall(function () use ($offset, $whence) {
-              $this->stream->seek($offset, $whence);
-              return true;
-          });
+            ? false
+            : $this->handleBooleanCall(function () use ($offset, $whence) {
+                $this->stream->seek($offset, $whence);
+                return true;
+            });
     }
 
     /**
@@ -421,8 +421,11 @@ class IpfsStreamWrapper
      */
     public function stream_stat()
     {
-        $size = $this->stream->getSize() ?: $this->size;
-        return $this->generateStat($size, null, $this->mode);
+        $stat = $this->getStatTemplate();
+        $stat['size'] = $this->stream->getSize() ?: $this->size;
+        $stat['mode'] = $this->mode;
+
+        return $stat;
     }
 
     /**
@@ -492,35 +495,32 @@ class IpfsStreamWrapper
      */
     public function url_stat($path, $flags)
     {
-        $size = $type = null;
-        try {
-            $path = $this->getTarget($path);
-            $this->setUri($this->getOption('ipfs_host') . '/api/v0/cat?arg=' . $path);
-            $response = $this->requestTryHeadLookingForHeader($this->uri, 'X-Content-Length');
+        $stat = $this->getStatTemplate();
 
-            if ($response->hasHeader('X-Content-Length')) {
-                $size = (int)$response->getHeaderLine('X-Content-Length');
-            } elseif ($body_size = $response->getBody()->getSize()) {
-                $size = $body_size;
-            }
-            $type = '2';
-        } catch (ServerException $exception) {
-            $response_body = $this->decodeResponse($exception->getResponse());
-            if (isset($response_body['Message']) && $response_body['Message'] === 'this dag node is a directory') {
-                $size = 0;
-                $type = '1';
+        try {
+            $ipfs_path = $this->getIpfsPath($path);
+            $this->setUri($this->getOption('ipfs_host') . '/api/v0/files/stat?arg=' . $ipfs_path);
+
+            $response = $this->request();
+            $body = $this->decodeResponse($response);
+
+            $stat['size'] = $body['Size'];
+
+            // 0100000 - bit mask for a regular file;
+            // 0040000 - bit mask for a directory.
+            // 0666 - bit mask to specify that the resource is readable and
+            // writable by anyone.
+            // @see "man 2 stat"
+            if ($body['Type'] === 'directory') {
+                $stat['mode'] = 0040000 | 0666;
+            } elseif ($body['Type'] === 'file') {
+                $stat['mode'] = 0100000 | 0666;
             }
         } catch (\Exception $exception) {
             $this->triggerError($exception->getMessage(), $flags);
         }
 
-        if ($size !== null && $type !== null) {
-            $stat = $this->generateStat($size, $type);
-
-            return $stat;
-        }
-
-        return null;
+        return $stat;
     }
 
     /**
@@ -544,7 +544,7 @@ class IpfsStreamWrapper
     }
 
     /**
-     * Returns the local writable target of the resource within the stream.
+     * Returns the IPFS path of an URI.
      *
      * This function should be used in place of calls to realpath() or similar
      * functions when attempting to determine the location of a file. While
@@ -556,11 +556,33 @@ class IpfsStreamWrapper
      *   Optional URI.
      *
      * @return string|bool
-     *   Returns a string representing a location suitable for writing of a
-     *   file, or FALSE if unable to write to the file such as with read-only
-     *   streams.
+     *   Returns a string representing an IPFS path in the form of
+     *   /ipfs/<hash>[/<folder_name>][/file_name.ext].
      */
-    private function getTarget($uri = null)
+    private function getIpfsPath($uri = null)
+    {
+        if (!isset($uri)) {
+            $uri = $this->uri;
+        }
+
+        // Remove erroneous leading or trailing, forward-slashes and
+        // backslashes.
+        $uri = trim($uri, '\/');
+
+        return str_replace('ipfs://', '/ipfs/', $uri);
+    }
+
+    /**
+     * Returns the target of the resource within the stream.
+     *
+     * @param string $uri
+     *   Optional URI.
+     *
+     * @return string
+     *   Returns a string representing an IPFS location in the form of
+     *   <hash>[/<folder_name>][/file_name.ext].
+     */
+    private function getIpfsTarget($uri = null)
     {
         if (!isset($uri)) {
             $uri = $this->uri;
@@ -614,8 +636,8 @@ class IpfsStreamWrapper
         if ($flags & STREAM_URL_STAT_QUIET || $flags & STREAM_REPORT_ERRORS) {
             return $flags & STREAM_URL_STAT_LINK
                 // This is triggered for things like is_link().
-              ? $this->generateStat(0, false)
-              : false;
+                ? $this->getStatTemplate()
+                : false;
         }
 
         // This is triggered when doing things like lstat() or stat().
@@ -627,53 +649,29 @@ class IpfsStreamWrapper
     /**
      * Generates an array as returned by the stat() function.
      *
-     * @param string $size
-     *   The size of the resource, in bytes.
-     * @param string $type
-     *   The type of the resource, '1' for directories and '2' for files.
-     * @param int $mode
-     *   (optional) The mode in which the stream was opened. Defaults to NULL,
-     *   which means that the mode will be derived from $type.
-     *
      * @return array
      *   An associative array, as returned by stat().
      *
      * @see http://php.net/manual/en/function.stat.php
      */
-    private function generateStat($size, $type, $mode = null)
+    protected function getStatTemplate()
     {
         // @see https://github.com/guzzle/psr7/blob/master/src/StreamWrapper.php
-        $stat = [
-          'dev' => 0,
-          'ino' => 0,
-          'mode' => 0,
-          'nlink' => 0,
-          'uid' => 0,
-          'gid' => 0,
-          'rdev' => 0,
-          'size' => 0,
-          'atime' => 0,
-          'mtime' => 0,
-          'ctime' => 0,
-          'blksize' => -1,
-          'blocks' => -1,
+        return [
+            'dev' => 0,
+            'ino' => 0,
+            'mode' => 0,
+            'nlink' => 0,
+            'uid' => 0,
+            'gid' => 0,
+            'rdev' => 0,
+            'size' => 0,
+            'atime' => 0,
+            'mtime' => 0,
+            'ctime' => 0,
+            'blksize' => -1,
+            'blocks' => -1,
         ];
-
-        // 0100000 - bit mask for a regular file;
-        // 0040000 - bit mask for a directory.
-        // 0444 - bit mask to specify that the resource is read-only, since IPFS
-        // resources are immutable.
-        // @see "man 2 stat"
-        if ($mode) {
-            $stat['mode'] = $mode;
-        } elseif ($type === '1') {
-            $stat['mode'] = 0040000 | 0444;
-        } elseif ($type === '2') {
-            $stat['mode'] = 0100000 | 0444;
-        }
-        $stat['size'] = $size;
-
-        return $stat;
     }
 
     /**
@@ -722,8 +720,8 @@ class IpfsStreamWrapper
      */
     private function openReadStream($uri)
     {
-        $path = $this->getTarget($uri);
-        $this->setUri($this->getOption('ipfs_host') . '/api/v0/cat?arg=' . $path);
+        $ipfs_target = $this->getIpfsTarget($uri);
+        $this->setUri($this->getOption('ipfs_host') . '/api/v0/cat?arg=' . $ipfs_target);
         $this->request();
 
         $this->size = $this->stream->getSize();
