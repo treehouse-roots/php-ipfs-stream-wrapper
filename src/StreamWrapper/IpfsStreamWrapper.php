@@ -60,7 +60,7 @@ class IpfsStreamWrapper
     private $objectIterator;
 
     /**
-     * The current path opened by dir_opendir().
+     * The current path opened by dir_opendir() or stream_open().
      *
      * @var string
      */
@@ -198,6 +198,40 @@ class IpfsStreamWrapper
     }
 
     /**
+     * Support for mkdir().
+     *
+     * Creating an empty directory in IPFS uses the mutable files API, which
+     * manipulates IPFS objects as if they were a unix filesystem.
+     *
+     * @param string $path
+     *   Directory which should be created.
+     * @param int $mode
+     *   The value passed to mkdir().
+     * @param array $options
+     *   A bit mask of values, such as STREAM_MKDIR_RECURSIVE.
+     *
+     * @return bool
+     *   Returns TRUE on success or FALSE on failure.
+     *
+     * @see http://php.net/manual/streamwrapper.mkdir.php
+     */
+    public function mkdir($path, $mode, $options)
+    {
+        $parents = ($options & STREAM_MKDIR_RECURSIVE) ? 'true' : 'false';
+        $ipfs_target = $this->getIpfsTarget($path);
+        $this->setUri($this->getOption('ipfs_host') . '/api/v0/files/mkdir?arg=/' . $ipfs_target . '&parents=' . $parents);
+
+      try {
+        $this->request();
+      }
+      catch (\Exception $e) {
+        return $this->triggerError($e->getMessage(), $options);
+      }
+
+      return true;
+    }
+
+    /**
      * Support for stream_cast().
      *
      * @param int $cast_as
@@ -267,7 +301,21 @@ class IpfsStreamWrapper
         ]);
         $response = $this->request('POST');
 
-        return $response->getStatusCode() == 200 ? true : false;
+        // If the upload was successful, move the file to our local opened path.
+        if ($response->getStatusCode() == 200) {
+          $body = $this->decodeResponse($response);
+
+          $source = '/ipfs/' . $body['Hash'];
+          $destination = '/' . $this->getIpfsTarget($this->openedPath);
+
+          $this->setUri($this->getOption('ipfs_host') . '/api/v0/files/cp?arg=' . $source . '&arg=' . $destination);
+          $this->setHttpClientConfigOption('multipart', NULL);
+          $this->request();
+
+          return true;
+        }
+
+        return false;
     }
 
     /**
@@ -312,6 +360,7 @@ class IpfsStreamWrapper
             return $this->triggerError($errors, $options);
         }
 
+        $this->openedPath = $path;
         if ($options & STREAM_USE_PATH) {
             $opened_path = $path;
         }
@@ -517,7 +566,7 @@ class IpfsStreamWrapper
                 $stat['mode'] = 0100000 | 0666;
             }
         } catch (\Exception $exception) {
-            $this->triggerError($exception->getMessage(), $flags);
+            return $this->triggerError($exception->getMessage(), $flags);
         }
 
         return $stat;
@@ -555,9 +604,11 @@ class IpfsStreamWrapper
      * @param string $uri
      *   Optional URI.
      *
-     * @return string|bool
+     * @return string
      *   Returns a string representing an IPFS path in the form of
-     *   /ipfs/<hash>[/<folder_name>][/file_name.ext].
+     *   /ipfs/<hash>[/<folder_name>][/file_name.ext] if the URI contains an
+     *   IPFS hash, or a local IPFS file path in the form of
+     *   [/<folder_name>][/file_name.ext] otherwise.
      */
     private function getIpfsPath($uri = null)
     {
@@ -565,11 +616,16 @@ class IpfsStreamWrapper
             $uri = $this->uri;
         }
 
-        // Remove erroneous leading or trailing, forward-slashes and
-        // backslashes.
-        $uri = trim($uri, '\/');
+        // Remove the scheme from the URI and remove erroneous leading or
+        // trailing, forward-slashes and backslashes.
+        $target = '/' . trim(preg_replace('/^[\w\-]+:\/\/|^data:/', '', $uri), '\/');
 
-        return str_replace('ipfs://', '/ipfs/', $uri);
+        // The target contains a hash, so it is not a local IPFS path.
+        if (substr($target,0,2) === 'Qm') {
+          $target = '/ipfs' . $target;
+        }
+
+        return $target;
     }
 
     /**
@@ -633,7 +689,7 @@ class IpfsStreamWrapper
     private function triggerError($errors, $flags = null)
     {
         // This is triggered with things like file_exists() or fopen().
-        if ($flags & STREAM_URL_STAT_QUIET || $flags & STREAM_REPORT_ERRORS) {
+        if ($flags & STREAM_URL_STAT_QUIET) {
             return $flags & STREAM_URL_STAT_LINK
                 // This is triggered for things like is_link().
                 ? $this->getStatTemplate()
@@ -641,7 +697,9 @@ class IpfsStreamWrapper
         }
 
         // This is triggered when doing things like lstat() or stat().
-        trigger_error(implode("\n", (array)$errors), E_USER_WARNING);
+        if ($flags & STREAM_REPORT_ERRORS) {
+          trigger_error(implode("\n", (array)$errors), E_USER_WARNING);
+        }
 
         return false;
     }
