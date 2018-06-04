@@ -52,7 +52,7 @@ trait HttpClientTrait
     private function getHttpClient()
     {
         if (!isset($this->httpClient)) {
-            $http_client_config = $this->getOption('http_client_config');
+            $http_client_config = $this->getOption('http_client_config') ?: [];
 
             // Shallow merge defaults underneath options.
             $config = $http_client_config + $this->httpClientConfig;
