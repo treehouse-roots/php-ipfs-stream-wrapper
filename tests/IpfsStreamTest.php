@@ -55,9 +55,9 @@ class IpfsStreamTest extends TestCase
             $type = $file->getType();
 
             if ($type === 'file') {
-                $files[] = (string) $file;
+                $files[] = (string)$file;
             } elseif ($type === 'dir') {
-                $dirs[] = (string) $file;
+                $dirs[] = (string)$file;
             }
         }
 
@@ -71,5 +71,62 @@ class IpfsStreamTest extends TestCase
         ];
         $this->assertSame($expected, $files);
         $this->assertSame([], $dirs);
+    }
+
+    /**
+     * @covers ::url_stat
+     * @covers ::getStatTemplate
+     *
+     * @dataProvider statCasesProvider
+     */
+    public function testStat($uri, $exists, $is_dir, $is_file, $size)
+    {
+        $this->assertSame($exists, file_exists($uri));
+        $this->assertSame($is_dir, is_dir($uri));
+        $this->assertSame($is_file, is_file($uri));
+        if ($exists) {
+            $this->assertSame(stat($uri)['size'], $size);
+        }
+    }
+
+    public function statCasesProvider()
+    {
+        return [
+            'empty dir' => [
+                'uri' => 'ipfs://QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn',
+                'exists' => true,
+                'is_dir' => true,
+                'is_file' => false,
+                'size' => 0,
+            ],
+            'non-empty dir' => [
+                'uri' => 'ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG',
+                'exists' => true,
+                'is_dir' => true,
+                'is_file' => false,
+                'size' => 0,
+            ],
+            'non-existent dir' => [
+                'uri' => 'ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG2',
+                'exists' => false,
+                'is_dir' => false,
+                'is_file' => false,
+                'size' => 0,
+            ],
+            'file' => [
+                'uri' => 'ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG/about',
+                'exists' => true,
+                'is_dir' => false,
+                'is_file' => true,
+                'size' => 1677,
+            ],
+            'non-existent file' => [
+                'uri' => 'ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG/about123',
+                'exists' => false,
+                'is_dir' => false,
+                'is_file' => false,
+                'size' => 0,
+            ],
+        ];
     }
 }
