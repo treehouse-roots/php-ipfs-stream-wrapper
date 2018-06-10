@@ -16,11 +16,11 @@
     "require": {
         "ext-sodium": "*",
         "php": "^7.0",
-        "guzzlehttp/guzzle": "^6.2.1",
-        "squizlabs/php_codesniffer": "2.*"
+        "guzzlehttp/guzzle": "^6.2.1"
     },
     "require-dev": {
-        "phpunit/phpunit": "^6.5"
+        "phpunit/phpunit": "^6.5",
+        "squizlabs/php_codesniffer": "2.*"
     },
     "autoload": {
         "psr-4": {
